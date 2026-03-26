@@ -62,7 +62,7 @@
   .device-location { font-size: 11px; color: var(--text-muted-colour, #6c757d); margin-top: 1px; }
   .wb-row {
     display: grid;
-    grid-template-columns: 20px 1fr 20px 36px;
+    grid-template-columns: 20px 1fr 20px 36px auto;
     align-items: center;
     gap: 8px;
   }
@@ -202,21 +202,41 @@
   }
 
   /* ---- device list ---- */
-  function makeWbSlider(wb, onChange) {
-    const initDisplay = wbToDisplay(wb);
+  function makeWbSlider(wb, onChange, onTest) {
     const numLabel = el('span', { className: 'wb-num' }, wbDisplayStr(wb));
-    const slider = el('input', { type: 'range', min: -10, max: 10, step: 1, value: initDisplay });
+    const slider = el('input', { type: 'range', min: -10, max: 10, step: 1, value: wbToDisplay(wb) });
     slider.oninput = () => {
       const newWb = displayToWb(parseInt(slider.value));
       numLabel.textContent = wbDisplayStr(newWb);
       onChange(newWb);
       pushConfig();
     };
+
+    const testBtn = el('button', { className: 'icon-btn', title: 'Preview this white balance on the device for 3 seconds' }, '▶');
+    testBtn.onclick = async () => {
+      testBtn.disabled = true;
+      let secs = 3;
+      testBtn.textContent = `${secs}s`;
+      const tick = setInterval(() => {
+        secs--;
+        testBtn.textContent = secs > 0 ? `${secs}s` : '…';
+      }, 1000);
+      try {
+        await onTest(displayToWb(parseInt(slider.value)));
+      } catch (e) {
+        homebridge.toast.error(e.message, 'Test failed');
+      }
+      clearInterval(tick);
+      testBtn.disabled = false;
+      testBtn.textContent = '▶';
+    };
+
     return el('div', { className: 'wb-row' },
       el('span', { className: 'wb-label cool', title: 'Cooler (more blue)' }, '❄'),
       slider,
       el('span', { className: 'wb-label warm', title: 'Warmer (more red)' }, '☀'),
-      numLabel
+      numLabel,
+      testBtn
     );
   }
 
@@ -268,7 +288,9 @@
       if (dc.location) headerLeft.appendChild(el('div', { className: 'device-location' }, dc.location));
 
       // Device-level slider (applies to all LEDs not covered by a zone override)
-      const deviceSlider = makeWbSlider(dc.whiteBalance ?? 128, v => { dc.whiteBalance = v; });
+      const deviceSlider = makeWbSlider(dc.whiteBalance ?? 128, v => { dc.whiteBalance = v; }, wb =>
+        homebridge.request('/test-wb', { host: server.host, port: server.port, name: server.name, deviceName: dc.name, location: dc.location, wb })
+      );
 
       // Per-zone section (hidden by default)
       const zones = dc.zones ?? [];
@@ -283,7 +305,9 @@
         }
         for (const zone of zones) {
           const zoneWb = dc.zoneWhiteBalance[zone.name] ?? 128;
-          const slider = makeWbSlider(zoneWb, v => { dc.zoneWhiteBalance[zone.name] = v; });
+          const slider = makeWbSlider(zoneWb, v => { dc.zoneWhiteBalance[zone.name] = v; }, wb =>
+            homebridge.request('/test-wb', { host: server.host, port: server.port, name: server.name, deviceName: dc.name, location: dc.location, zoneName: zone.name, wb })
+          );
           zoneGrid.appendChild(el('div', { className: 'zone-row' },
             el('div', { className: 'zone-label' },
               el('span', {}, zone.name),

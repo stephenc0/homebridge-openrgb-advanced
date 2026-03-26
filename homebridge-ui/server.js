@@ -7,6 +7,7 @@ class OpenRgbUiServer extends HomebridgePluginUiServer {
     this.onRequest('/discover', this.handleDiscover.bind(this));
     this.onRequest('/identify', this.handleIdentify.bind(this));
     this.onRequest('/identify-zone', this.handleIdentifyZone.bind(this));
+    this.onRequest('/test-wb', this.handleTestWb.bind(this));
     this.ready();
   }
 
@@ -116,6 +117,58 @@ class OpenRgbUiServer extends HomebridgePluginUiServer {
       await client.updateLeds(target.deviceId, off);
       await sleep(300);
     }
+    await client.updateLeds(target.deviceId, original);
+
+    try { client.disconnect(); } catch (_) {}
+
+    return { ok: true };
+  }
+
+  async handleTestWb({ host, port, name: serverName, deviceName, location, zoneName, wb }) {
+    const client = new OpenRGB(serverName || 'homebridge-ui', port || 6742, host || 'localhost');
+
+    await Promise.race([
+      client.connect(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timed out')), 5000)),
+    ]);
+
+    const count = await client.getControllerCount();
+    let target = null;
+    for (let i = 0; i < count; i++) {
+      const device = await client.getControllerData(i);
+      if (device.name === deviceName && (!location || device.location === location)) {
+        target = device;
+        break;
+      }
+    }
+
+    if (!target) throw new Error(`Device "${deviceName}" not found`);
+
+    // Compute WB multipliers from wb value (0-255)
+    const wbR = wb < 128 ? wb * 2 : 255;
+    const wbB = wb > 128 ? (255 - wb) * 2 : 255;
+    const applyWb = c => ({
+      red:   Math.round(c.red   * wbR / 255),
+      green: Math.round(c.green * 255  / 255),
+      blue:  Math.round(c.blue  * wbB  / 255),
+    });
+
+    // Determine LED range (full device, or just a zone)
+    let startIndex = 0;
+    let endIndex = target.colors.length;
+    if (zoneName) {
+      const zoneIndex = (target.zones ?? []).findIndex(z => z.name === zoneName);
+      if (zoneIndex >= 0) {
+        for (let i = 0; i < zoneIndex; i++) startIndex += target.zones[i].ledsCount;
+        endIndex = startIndex + target.zones[zoneIndex].ledsCount;
+      }
+    }
+
+    const original = [...target.colors];
+    const corrected = original.map((c, i) => i >= startIndex && i < endIndex ? applyWb(c) : c);
+
+    await client.updateLeds(target.deviceId, corrected);
+    await new Promise(r => setTimeout(r, 3000));
     await client.updateLeds(target.deviceId, original);
 
     try { client.disconnect(); } catch (_) {}
