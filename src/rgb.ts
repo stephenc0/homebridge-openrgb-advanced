@@ -35,7 +35,7 @@ export interface RgbServer {
     name: string;
     host: string;
     port: number;
-    deviceConfigs?: { name: string; location?: string; whiteBalance?: number; zoneWhiteBalance?: Record<string, number> }[];
+    deviceConfigs?: { name: string; location?: string; whiteBalance?: number; zoneWhiteBalance?: Record<string, number>; tint?: number; zoneTint?: Record<string, number>; saturation?: number; zoneSaturation?: Record<string, number> }[];
 }
 
 /** State information that HomeKit keeps for accessories */
@@ -53,6 +53,10 @@ export interface RgbDeviceContext {
     server: RgbServer;
     /** Per-LED white balance as RGB multiplier colors; index matches LED index. All LEDs present. */
     ledWhiteBalances: Color[];
+    /** Per-LED tint as RGB multiplier colors; index matches LED index. All LEDs present. */
+    ledTints: Color[];
+    /** Per-LED saturation scale (0–100); index matches LED index. All LEDs present. */
+    ledSaturations: number[];
     lastPoweredRgbColor?: Color;
     lastPoweredModeId?: number;
 }

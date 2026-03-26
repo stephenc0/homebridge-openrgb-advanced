@@ -62,10 +62,18 @@
   .device-location { font-size: 11px; color: var(--text-muted-colour, #6c757d); margin-top: 1px; }
   .wb-row {
     display: grid;
-    grid-template-columns: 20px 1fr 20px 36px auto;
+    grid-template-columns: 20px 1fr 20px 36px;
     align-items: center;
     gap: 8px;
   }
+  .sat-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 36px;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .sat-label { font-size: 11px; color: var(--text-muted-colour, #6c757d); }
   .wb-label { font-size: 11px; color: var(--text-muted-colour, #6c757d); }
   .wb-label.cool { color: #6aa3f5; }
   .wb-label.warm { color: #f5a623; text-align: right; }
@@ -146,7 +154,7 @@
 (async () => {
   const configs = await homebridge.getPluginConfig();
   const cfg = Object.assign(
-    { name: 'OpenRGB Custom', servers: [], discoveryInterval: 60, preserveDisconnected: false, suppressConnectionErrors: false },
+    { name: 'OpenRGB Advanced', servers: [], discoveryInterval: 60, preserveDisconnected: false, suppressConnectionErrors: false },
     configs[0] || {}
   );
   if (!cfg.servers) cfg.servers = [];
@@ -205,41 +213,66 @@
   }
 
   /* ---- device list ---- */
-  function makeWbSlider(wb, onChange, onTest) {
+  function makeWbSlider(wb, onChange, { initialWb = wb, coolLabel = '❄', warmLabel = '☀', coolTitle = 'Cooler (more blue)', warmTitle = 'Warmer (more red)' } = {}) {
     const numLabel = el('span', { className: 'wb-num' }, wbDisplayStr(wb));
-    const slider = el('input', { type: 'range', min: -10, max: 10, step: 1, value: wbToDisplay(wb) });
+    const uid = Math.random().toString(36).slice(2);
+    const marks = el('datalist', { id: uid });
+    marks.appendChild(el('option', { value: wbToDisplay(initialWb) }));
+    const slider = el('input', { type: 'range', min: -10, max: 10, step: 1, value: wbToDisplay(wb), list: uid });
     slider.oninput = () => {
       const newWb = displayToWb(parseInt(slider.value));
       numLabel.textContent = wbDisplayStr(newWb);
       onChange(newWb);
       pushConfig();
     };
+    return el('div', { className: 'wb-row' },
+      marks,
+      el('span', { className: 'wb-label cool', title: coolTitle }, coolLabel),
+      slider,
+      el('span', { className: 'wb-label warm', title: warmTitle }, warmLabel),
+      numLabel
+    );
+  }
 
-    const testBtn = el('button', { className: 'icon-btn', title: 'Preview this white balance on the device for 3 seconds' }, '▶');
-    testBtn.onclick = async () => {
-      testBtn.disabled = true;
+  function makeTestBtn(onTest, title = 'Preview current correction on the device for 3 seconds') {
+    const btn = el('button', { className: 'icon-btn', title }, '▶');
+    btn.onclick = async () => {
+      btn.disabled = true;
       let secs = 3;
-      testBtn.textContent = `${secs}s`;
+      btn.textContent = `${secs}s`;
       const tick = setInterval(() => {
         secs--;
-        testBtn.textContent = secs > 0 ? `${secs}s` : '…';
+        btn.textContent = secs > 0 ? `${secs}s` : '…';
       }, 1000);
       try {
-        await onTest(displayToWb(parseInt(slider.value)));
+        await onTest();
       } catch (e) {
         homebridge.toast.error(e.message, 'Test failed');
       }
       clearInterval(tick);
-      testBtn.disabled = false;
-      testBtn.textContent = '▶';
+      btn.disabled = false;
+      btn.textContent = '▶';
     };
+    return btn;
+  }
 
-    return el('div', { className: 'wb-row' },
-      el('span', { className: 'wb-label cool', title: 'Cooler (more blue)' }, '❄'),
+  function makeSatSlider(sat, onChange, initialSat = sat) {
+    const numLabel = el('span', { className: 'wb-num' }, `${sat ?? 100}%`);
+    const uid = Math.random().toString(36).slice(2);
+    const marks = el('datalist', { id: uid });
+    marks.appendChild(el('option', { value: initialSat ?? 100 }));
+    const slider = el('input', { type: 'range', min: 0, max: 100, step: 1, value: sat ?? 100, list: uid });
+    slider.oninput = () => {
+      const v = parseInt(slider.value);
+      numLabel.textContent = `${v}%`;
+      onChange(v);
+      pushConfig();
+    };
+    return el('div', { className: 'sat-row' },
+      marks,
+      el('span', { className: 'sat-label', title: 'Scale down color saturation (100% = unchanged, 0% = grey/white)' }, 'Saturation'),
       slider,
-      el('span', { className: 'wb-label warm', title: 'Warmer (more red)' }, '☀'),
-      numLabel,
-      testBtn
+      numLabel
     );
   }
 
@@ -286,18 +319,35 @@
     server.deviceConfigs.forEach((dc, di) => {
       if (!dc.ledWhiteBalance) dc.ledWhiteBalance = [];
 
+      // Snapshot saved correction values — used to undo the currently-applied correction during test
+      const savedWb = dc.whiteBalance ?? 128;
+      const savedTint = dc.tint ?? 128;
+      const savedSat = dc.saturation ?? 100;
+      const savedZoneWb = Object.assign({}, dc.zoneWhiteBalance);
+      const savedZoneTint = Object.assign({}, dc.zoneTint);
+      const savedZoneSat = Object.assign({}, dc.zoneSaturation);
+
       const nameEl = el('div', { className: 'device-name' }, dc.name);
       const headerLeft = el('div', {}, nameEl);
       if (dc.location) headerLeft.appendChild(el('div', { className: 'device-location' }, dc.location));
 
-      // Device-level slider (applies to all LEDs not covered by a zone override)
-      const deviceSlider = makeWbSlider(dc.whiteBalance ?? 128, v => { dc.whiteBalance = v; }, wb =>
-        homebridge.request('/test-wb', { host: server.host, port: server.port, name: server.name, deviceName: dc.name, location: dc.location, wb })
+      const testBase = { host: server.host, port: server.port, name: server.name, deviceName: dc.name, location: dc.location };
+
+      // Device-level sliders (apply to all LEDs not covered by a zone override)
+      const deviceSlider = makeWbSlider(dc.whiteBalance ?? 128, v => { dc.whiteBalance = v; }, { initialWb: savedWb });
+      const deviceTintSlider = makeWbSlider(dc.tint ?? 128, v => { dc.tint = v; },
+        { initialWb: savedTint, coolLabel: '🟢', warmLabel: '🟣', coolTitle: 'More green', warmTitle: 'More magenta' }
+      );
+      const deviceSatSlider = makeSatSlider(dc.saturation ?? 100, v => { dc.saturation = v; }, savedSat);
+      const deviceTestBtn = makeTestBtn(() =>
+        homebridge.request('/test-wb', { ...testBase, wb: dc.whiteBalance ?? 128, oldWb: savedWb, tint: dc.tint ?? 128, oldTint: savedTint, sat: dc.saturation ?? 100, oldSat: savedSat })
       );
 
       // Per-zone section (hidden by default)
       const zones = dc.zones ?? [];
       if (!dc.zoneWhiteBalance) dc.zoneWhiteBalance = {};
+      if (!dc.zoneTint) dc.zoneTint = {};
+      if (!dc.zoneSaturation) dc.zoneSaturation = {};
       const zoneGrid = el('div', { className: 'zone-grid', style: 'display:none' });
 
       function renderZoneGrid() {
@@ -308,18 +358,30 @@
         }
         for (const zone of zones) {
           const zoneWb = dc.zoneWhiteBalance[zone.name] ?? 128;
-          const slider = makeWbSlider(zoneWb, v => { dc.zoneWhiteBalance[zone.name] = v; }, wb =>
-            homebridge.request('/test-wb', { host: server.host, port: server.port, name: server.name, deviceName: dc.name, location: dc.location, zoneName: zone.name, wb })
+          const zoneOldWb = savedZoneWb[zone.name] ?? 128;
+          const zoneOldTint = savedZoneTint[zone.name] ?? 128;
+          const zoneOldSat = savedZoneSat[zone.name] ?? 100;
+          const zoneTestBase = { ...testBase, zoneName: zone.name };
+          const wbSlider = makeWbSlider(zoneWb, v => { dc.zoneWhiteBalance[zone.name] = v; }, { initialWb: zoneOldWb });
+          const tintSlider = makeWbSlider(dc.zoneTint[zone.name] ?? 128, v => { dc.zoneTint[zone.name] = v; },
+            { initialWb: zoneOldTint, coolLabel: '🟢', warmLabel: '🟣', coolTitle: 'More green', warmTitle: 'More magenta' }
+          );
+          const satSlider = makeSatSlider(dc.zoneSaturation[zone.name] ?? 100, v => { dc.zoneSaturation[zone.name] = v; }, zoneOldSat);
+          const zoneTestBtn = makeTestBtn(() =>
+            homebridge.request('/test-wb', { ...zoneTestBase, wb: dc.zoneWhiteBalance[zone.name] ?? 128, oldWb: zoneOldWb, tint: dc.zoneTint[zone.name] ?? 128, oldTint: zoneOldTint, sat: dc.zoneSaturation[zone.name] ?? 100, oldSat: zoneOldSat })
           );
           zoneGrid.appendChild(el('div', { className: 'zone-row' },
             el('div', { className: 'zone-label' },
               el('span', {}, zone.name),
               el('div', { style: 'display:flex;gap:6px;align-items:center' },
                 el('span', { className: 'zone-leds' }, `${zone.ledCount} LEDs`),
-                makeZoneIdentifyBtn(server, dc, zone)
+                makeZoneIdentifyBtn(server, dc, zone),
+                zoneTestBtn
               )
             ),
-            slider
+            wbSlider,
+            tintSlider,
+            satSlider
           ));
         }
       }
@@ -342,6 +404,7 @@
           headerLeft,
           el('div', { style: 'display:flex;gap:6px;align-items:center' },
             makeIdentifyBtn(server, dc),
+            deviceTestBtn,
             el('button', { className: 'btn btn-danger', title: 'Remove this device', onclick: () => {
               server.deviceConfigs.splice(di, 1);
               renderDevices(server, container);
@@ -349,6 +412,8 @@
           )
         ),
         deviceSlider,
+        deviceTintSlider,
+        deviceSatSlider,
         toggleBtn,
         zoneGrid
       );

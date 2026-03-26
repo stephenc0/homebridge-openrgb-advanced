@@ -275,13 +275,22 @@ export class OpenRgbPlatformAccessory {
         newMode = directModeId;
       }
 
-      // Build per-LED colors, applying each LED's individual white balance
+      // Build per-LED colors, applying each LED's individual white balance and saturation scale
       // Recompute from live device so zone LED count changes are picked up immediately
       const liveLedWhiteBalances = this.platform.getDeviceLedWhiteBalances(this.accessory.context.server, device);
+      const liveLedTints = this.platform.getDeviceLedTints(this.accessory.context.server, device);
+      const liveLedSaturations = this.platform.getDeviceLedSaturations(this.accessory.context.server, device);
       const neutral: Color = [255, 255, 255];
       const newLedColors: OpenRgbColor[] = device.colors.map((_, i) => {
+        if (isLedOff(newColorRgb)) {
+          return { red: 0, green: 0, blue: 0 };
+        }
         const wb = liveLedWhiteBalances[i] ?? neutral;
-        const finalColor: Color = isLedOff(newColorRgb) ? newColorRgb : applyWhiteBalance(newColorRgb, wb);
+        const tint = liveLedTints[i] ?? neutral;
+        const wbColor = applyWhiteBalance(applyWhiteBalance(newColorRgb, wb), tint);
+        const satScale = (liveLedSaturations[i] ?? 100) / 100;
+        const [h, s, v] = ColorConvert.rgb.hsv(...wbColor);
+        const finalColor: Color = ColorConvert.hsv.rgb([h, s * satScale, v]);
         return { red: finalColor[0], green: finalColor[1], blue: finalColor[2] };
       });
 

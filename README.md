@@ -1,4 +1,4 @@
-# homebridge-openrgb-custom
+# homebridge-openrgb-advanced
 
 A Homebridge plugin to control RGB lighting on your PC via [OpenRGB](https://openrgb.org/). Fork of [homebridge-openrgb](https://github.com/dbrook823/homebridge-openrgb) with added white balance correction, color temperature, adaptive lighting, and per-zone tuning.
 
@@ -26,12 +26,12 @@ In OpenRGB: **Settings → SDK Server → Start Server** (default port 6742). En
 
 ### Via Homebridge UI (recommended)
 
-Search for `homebridge-openrgb-custom` in the Homebridge plugin browser and install.
+Search for `homebridge-openrgb-advanced` in the Homebridge plugin browser and install.
 
 ### Manually
 
 ```bash
-sudo npm install -g https://github.com/stephenc0/homebridge-openrgb-custom
+sudo npm install -g https://github.com/stephenc0/homebridge-openrgb-advanced
 ```
 
 ## Configuration
@@ -48,8 +48,8 @@ Use the **Homebridge Config UI** to configure the plugin — it provides a live 
 
 ```json
 {
-    "name": "OpenRGB Custom",
-    "platform": "OpenRgbCustomPlatform",
+    "name": "OpenRGB Advanced",
+    "platform": "OpenRgbAdvancedPlatform",
     "servers": [
         {
             "name": "My PC",
@@ -77,7 +77,7 @@ Use the **Homebridge Config UI** to configure the plugin — it provides a live 
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `name` | string | `"OpenRGB Custom"` | Plugin name |
+| `name` | string | `"OpenRGB Advanced"` | Plugin name |
 | `servers` | array | | List of OpenRGB SDK servers |
 | `servers[].name` | string | | Display name for the server |
 | `servers[].host` | string | | IP address or hostname of the PC |
@@ -99,7 +99,7 @@ Zone overrides use the same scale and take precedence over the device-level sett
 
 ## Differences from homebridge-openrgb
 
-| Feature | homebridge-openrgb | homebridge-openrgb-custom |
+| Feature | homebridge-openrgb | homebridge-openrgb-advanced |
 |---|---|---|
 | Color (Hue/Saturation) | Yes | Yes |
 | Brightness | Yes | Yes |
@@ -111,8 +111,8 @@ Zone overrides use the same scale and take precedence over the device-level sett
 ## Development
 
 ```bash
-git clone https://github.com/stephenc0/homebridge-openrgb-custom
-cd homebridge-openrgb-custom
+git clone https://github.com/stephenc0/homebridge-openrgb-advanced
+cd homebridge-openrgb-advanced
 npm install
 npm run watch   # build + link + watch for changes
 ```

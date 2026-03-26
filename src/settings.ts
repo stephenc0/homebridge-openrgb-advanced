@@ -1,8 +1,8 @@
 /** This is the name of the platform that users will use to register the plugin in the Homebridge config.json */
-export const PLATFORM_NAME = 'OpenRgbCustomPlatform';
+export const PLATFORM_NAME = 'OpenRgbAdvancedPlatform';
 
 /** This must match the name of the plugin as defined in package.json */
-export const PLUGIN_NAME = 'homebridge-openrgb-custom';
+export const PLUGIN_NAME = 'homebridge-openrgb-advanced';
 
 /** Name used for devices when OpenRGB does not provide a name for them */
 export const DEFAULT_DEVICE_NAME = 'RGB Device';

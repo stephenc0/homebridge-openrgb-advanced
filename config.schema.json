@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "OpenRgbCustomPlatform",
+  "pluginAlias": "OpenRgbAdvancedPlatform",
   "pluginType": "platform",
   "singular": true,
   "customUi": true,
@@ -42,7 +42,7 @@
               "description": "The port number that the OpenRGB SDK Server is set to run on"
             },
             "deviceConfigs": {
-              "title": "Device White Balance",
+              "title": "Device Configuration",
               "type": "array",
               "items": {
                 "title": "Device",
@@ -54,26 +54,38 @@
                     "required": true,
                     "description": "Exact device name as reported by OpenRGB"
                   },
-                  "whiteBalanceR": {
-                    "title": "Red",
+                  "whiteBalance": {
+                    "title": "White Balance",
                     "type": "integer",
-                    "default": 255,
+                    "default": 128,
                     "minimum": 0,
                     "maximum": 255
                   },
-                  "whiteBalanceG": {
-                    "title": "Green",
+                  "saturation": {
+                    "title": "Saturation Scale (%)",
                     "type": "integer",
-                    "default": 255,
+                    "default": 100,
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "tint": {
+                    "title": "Tint",
+                    "type": "integer",
+                    "default": 128,
                     "minimum": 0,
                     "maximum": 255
                   },
-                  "whiteBalanceB": {
-                    "title": "Blue",
-                    "type": "integer",
-                    "default": 255,
-                    "minimum": 0,
-                    "maximum": 255
+                  "zoneWhiteBalance": {
+                    "title": "Zone White Balance",
+                    "type": "object"
+                  },
+                  "zoneTint": {
+                    "title": "Zone Tint",
+                    "type": "object"
+                  },
+                  "zoneSaturation": {
+                    "title": "Zone Saturation",
+                    "type": "object"
                   }
                 }
               }

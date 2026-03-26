@@ -112,6 +112,8 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
         existingAccessory.context.device = device;
         existingAccessory.context.server = deviceServer;
         existingAccessory.context.ledWhiteBalances = this.getDeviceLedWhiteBalances(deviceServer, device);
+        existingAccessory.context.ledTints = this.getDeviceLedTints(deviceServer, device);
+        existingAccessory.context.ledSaturations = this.getDeviceLedSaturations(deviceServer, device);
         if (!isLedOff(colorRgb)) {
           existingAccessory.context.lastPoweredRgbColor = colorRgb;
         }
@@ -134,6 +136,8 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
         accessory.context.device = device;
         accessory.context.server = deviceServer;
         accessory.context.ledWhiteBalances = this.getDeviceLedWhiteBalances(deviceServer, device);
+        accessory.context.ledTints = this.getDeviceLedTints(deviceServer, device);
+        accessory.context.ledSaturations = this.getDeviceLedSaturations(deviceServer, device);
         if (!isLedOff(colorRgb)) {
           accessory.context.lastPoweredRgbColor = colorRgb;
         }
@@ -191,6 +195,65 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
     const r = wb < 128 ? wb * 2 : 255;
     const b = wb > 128 ? (255 - wb) * 2 : 255;
     return [r, 255, b];
+  }
+
+  /** Converts a single tint value (0=green, 128=neutral, 255=magenta) to an RGB multiplier Color. */
+  tintToColor(tint: number): Color {
+    const g = tint > 128 ? (255 - tint) * 2 : 255;
+    const rb = tint < 128 ? tint * 2 : 255;
+    return [rb, g, rb];
+  }
+
+  /** Returns a per-LED tint Color array for a device.
+   *  Zone overrides are applied to their LED ranges; device-level tint is the fallback.
+   */
+  getDeviceLedTints(server: RgbServer, device: RgbDevice): Color[] {
+    const deviceConfig = server.deviceConfigs?.find((dc) =>
+      dc.name === device.name && (dc.location === undefined || dc.location === device.location),
+    );
+    const deviceDefault = this.tintToColor(deviceConfig?.tint ?? 128);
+    const ledCount = device.colors?.length ?? 1;
+    const result: Color[] = new Array(ledCount).fill(deviceDefault);
+
+    if (deviceConfig?.zoneTint && device.zones?.length) {
+      let ledIndex = 0;
+      for (const zone of device.zones) {
+        const zoneTint = deviceConfig.zoneTint[zone.name];
+        const zoneColor = zoneTint !== undefined ? this.tintToColor(zoneTint) : deviceDefault;
+        for (let i = 0; i < zone.ledsCount && ledIndex + i < ledCount; i++) {
+          result[ledIndex + i] = zoneColor;
+        }
+        ledIndex += zone.ledsCount;
+      }
+    }
+
+    return result;
+  }
+
+  /** Returns a per-LED saturation scale (0–100) array for a device.
+   *  Zone overrides are applied to their LED ranges; device-level saturation is the fallback.
+   */
+  getDeviceLedSaturations(server: RgbServer, device: RgbDevice): number[] {
+    const deviceConfig = server.deviceConfigs?.find((dc) =>
+      dc.name === device.name && (dc.location === undefined || dc.location === device.location),
+    );
+    const deviceDefault = deviceConfig?.saturation ?? 100;
+    const ledCount = device.colors?.length ?? 1;
+    const result: number[] = new Array(ledCount).fill(deviceDefault);
+
+    if (deviceConfig?.zoneSaturation && device.zones?.length) {
+      let ledIndex = 0;
+      for (const zone of device.zones) {
+        const zoneSat = deviceConfig.zoneSaturation[zone.name];
+        const zoneValue = zoneSat !== undefined ? zoneSat : deviceDefault;
+        for (let i = 0; i < zone.ledsCount && ledIndex + i < ledCount; i++) {
+          result[ledIndex + i] = zoneValue;
+        }
+        ledIndex += zone.ledsCount;
+      }
+    }
+
+    return result;
   }
 
   /** Returns a per-LED white balance Color array for a device.
@@ -255,7 +318,8 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
         const device: RgbDevice = await client.getControllerData(deviceId);
         devices.push(device);
       } catch (err) {
-        this.log.warn(`Unable to get status of RGB device ${deviceId} on OpenRGB SDK server at ${serverHost}:${serverPort}`);
+        this.log.warn(`Unable to get status of RGB device ${deviceId} on OpenRGB SDK server` +
+          ` at ${serverHost}:${serverPort}: ${(err as Error).message}`);
       }
     }
 
