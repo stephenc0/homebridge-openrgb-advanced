@@ -1,14 +1,20 @@
 {
   "displayName": "Homebridge OpenRGB Advanced",
   "name": "homebridge-openrgb-advanced",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "license": "Apache-2.0",
   "description": "Control the RGB lighting of your PC components and peripherals with HomeKit. Extended fork of homebridge-openrgb.",
   "keywords": [
+    "homebridge",
     "homebridge-plugin",
     "openrgb",
     "rgb",
-    "homekit"
+    "homekit",
+    "adaptive-lighting",
+    "color-temperature"
+  ],
+  "maintainers": [
+    "stephenc0"
   ],
   "engines": {
     "node": ">=18.0.0",
