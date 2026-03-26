@@ -62,7 +62,7 @@
   .device-location { font-size: 11px; color: var(--text-muted-colour, #6c757d); margin-top: 1px; }
   .wb-row {
     display: grid;
-    grid-template-columns: 36px 1fr 36px;
+    grid-template-columns: 20px 1fr 20px 36px;
     align-items: center;
     gap: 8px;
   }
@@ -78,7 +78,7 @@
   }
   .zone-toggle {
     font-size: 12px;
-    color: var(--primary-colour, #007bff);
+    color: var(--primary-colour, #0d6efd);
     cursor: pointer;
     background: none;
     border: none;
@@ -121,16 +121,23 @@
   .discover-row { display: flex; align-items: center; gap: 10px; margin: 10px 0 8px; }
   .discover-status { font-size: 12px; color: var(--text-muted-colour, #6c757d); }
   .no-devices { font-size: 13px; color: var(--text-muted-colour, #6c757d); padding: 4px 0 8px; }
-  .identify-btn {
+  .icon-btn {
     font-size: 12px;
     padding: 2px 8px;
     background: transparent;
     border: 1px solid var(--border-colour, #ced4da);
     border-radius: 4px;
-    color: var(--text-colour, #212529);
+    color: inherit;
     cursor: pointer;
   }
-  .identify-btn:disabled { opacity: 0.5; cursor: default; }
+  .icon-btn:disabled { opacity: 0.5; cursor: default; }
+  .wb-num {
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 32px;
+    text-align: center;
+    color: inherit;
+  }
 </style>
 </head>
 <body>
@@ -181,32 +188,42 @@
     return el('div', { className: 'toggle-row' }, el('span', {}, labelText), cb);
   }
 
-  function wbLabel(value) {
-    if (value < 100) return 'Cool';
-    if (value > 156) return 'Warm';
-    return 'Neutral';
+  // Convert internal wb (0-255) to display scalar (-10 to +10)
+  function wbToDisplay(wb) {
+    const v = Math.round((wb - 128) / 12.8);
+    return Math.max(-10, Math.min(10, v));
+  }
+  function displayToWb(v) {
+    return Math.max(0, Math.min(255, Math.round(v * 12.8 + 128)));
+  }
+  function wbDisplayStr(wb) {
+    const v = wbToDisplay(wb);
+    return v > 0 ? `+${v}` : String(v);
   }
 
   /* ---- device list ---- */
-  function makeWbSlider(value, onChange) {
-    const valLabel = el('div', { className: 'wb-value' }, wbLabel(value));
-    const slider = el('input', { type: 'range', min: 0, max: 255, step: 1, value });
-    slider.oninput = () => { onChange(parseInt(slider.value)); valLabel.textContent = wbLabel(parseInt(slider.value)); pushConfig(); };
-    return el('div', {},
-      el('div', { className: 'wb-row' },
-        el('span', { className: 'wb-label cool' }, '❄ Cool'),
-        slider,
-        el('span', { className: 'wb-label warm' }, 'Warm ☀')
-      ),
-      valLabel
+  function makeWbSlider(wb, onChange) {
+    const initDisplay = wbToDisplay(wb);
+    const numLabel = el('span', { className: 'wb-num' }, wbDisplayStr(wb));
+    const slider = el('input', { type: 'range', min: -10, max: 10, step: 1, value: initDisplay });
+    slider.oninput = () => {
+      const newWb = displayToWb(parseInt(slider.value));
+      numLabel.textContent = wbDisplayStr(newWb);
+      onChange(newWb);
+      pushConfig();
+    };
+    return el('div', { className: 'wb-row' },
+      el('span', { className: 'wb-label cool', title: 'Cooler (more blue)' }, '❄'),
+      slider,
+      el('span', { className: 'wb-label warm', title: 'Warmer (more red)' }, '☀'),
+      numLabel
     );
   }
 
   function makeIdentifyBtn(server, dc) {
-    const btn = el('button', { className: 'identify-btn' }, '💡 Identify');
+    const btn = el('button', { className: 'icon-btn', title: 'Flash all LEDs on this device to identify it' }, '💡');
     btn.onclick = async () => {
       btn.disabled = true;
-      btn.textContent = '…';
       try {
         await homebridge.request('/identify', {
           host: server.host, port: server.port, name: server.name,
@@ -216,7 +233,23 @@
         homebridge.toast.error(e.message, 'Identify failed');
       }
       btn.disabled = false;
-      btn.textContent = '💡 Identify';
+    };
+    return btn;
+  }
+
+  function makeZoneIdentifyBtn(server, dc, zone) {
+    const btn = el('button', { className: 'icon-btn', title: `Flash "${zone.name}" zone LEDs to identify them` }, '💡');
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        await homebridge.request('/identify-zone', {
+          host: server.host, port: server.port, name: server.name,
+          deviceName: dc.name, location: dc.location, zoneName: zone.name,
+        });
+      } catch (e) {
+        homebridge.toast.error(e.message, 'Identify zone failed');
+      }
+      btn.disabled = false;
     };
     return btn;
   }
@@ -234,8 +267,8 @@
       const headerLeft = el('div', {}, nameEl);
       if (dc.location) headerLeft.appendChild(el('div', { className: 'device-location' }, dc.location));
 
-      // Device-level slider
-      const deviceSlider = makeWbSlider(dc.whiteBalance ?? 128, v => dc.whiteBalance = v);
+      // Device-level slider (applies to all LEDs not covered by a zone override)
+      const deviceSlider = makeWbSlider(dc.whiteBalance ?? 128, v => { dc.whiteBalance = v; });
 
       // Per-zone section (hidden by default)
       const zones = dc.zones ?? [];
@@ -250,24 +283,16 @@
         }
         for (const zone of zones) {
           const zoneWb = dc.zoneWhiteBalance[zone.name] ?? 128;
-          const valLabel = el('div', { className: 'wb-value' }, wbLabel(zoneWb));
-          const slider = el('input', { type: 'range', min: 0, max: 255, step: 1, value: zoneWb });
-          slider.oninput = () => {
-            dc.zoneWhiteBalance[zone.name] = parseInt(slider.value);
-            valLabel.textContent = wbLabel(parseInt(slider.value));
-            pushConfig();
-          };
+          const slider = makeWbSlider(zoneWb, v => { dc.zoneWhiteBalance[zone.name] = v; });
           zoneGrid.appendChild(el('div', { className: 'zone-row' },
             el('div', { className: 'zone-label' },
               el('span', {}, zone.name),
-              el('span', { className: 'zone-leds' }, `${zone.ledCount} LEDs`)
+              el('div', { style: 'display:flex;gap:6px;align-items:center' },
+                el('span', { className: 'zone-leds' }, `${zone.ledCount} LEDs`),
+                makeZoneIdentifyBtn(server, dc, zone)
+              )
             ),
-            el('div', { className: 'wb-row' },
-              el('span', { className: 'wb-label cool' }, '❄'),
-              slider,
-              el('span', { className: 'wb-label warm' }, '☀')
-            ),
-            valLabel
+            slider
           ));
         }
       }
@@ -288,7 +313,7 @@
           headerLeft,
           el('div', { style: 'display:flex;gap:6px;align-items:center' },
             makeIdentifyBtn(server, dc),
-            el('button', { className: 'btn btn-danger', onclick: () => {
+            el('button', { className: 'btn btn-danger', title: 'Remove this device', onclick: () => {
               server.deviceConfigs.splice(di, 1);
               renderDevices(server, container);
             }}, '✕')
@@ -309,7 +334,7 @@
     const devicesDiv = el('div');
 
     const discoverStatus = el('span', { className: 'discover-status' });
-    const discoverBtn = el('button', { className: 'btn btn-outline', onclick: async () => {
+    const discoverBtn = el('button', { className: 'btn btn-outline', title: 'Connect to the OpenRGB server and detect devices', onclick: async () => {
       discoverBtn.disabled = true;
       discoverStatus.textContent = 'Connecting…';
       try {
@@ -351,7 +376,7 @@
     const card = el('div', { className: 'server-card' },
       el('div', { className: 'server-header' },
         titleEl,
-        el('button', { className: 'btn btn-danger', onclick: () => { cfg.servers.splice(si, 1); render(); }}, 'Remove')
+        el('button', { className: 'btn btn-danger', title: 'Remove this server', onclick: () => { cfg.servers.splice(si, 1); render(); }}, 'Remove')
       ),
       el('div', { className: 'row-2' },
         el('div', { className: 'field' }, el('label', {}, 'Name'), nameInput),
@@ -376,7 +401,7 @@
 
     app.appendChild(el('div', { className: 'section-title' }, 'Servers'));
     cfg.servers.forEach((s, i) => renderServer(s, i));
-    app.appendChild(el('button', { className: 'btn btn-outline', onclick: () => {
+    app.appendChild(el('button', { className: 'btn btn-outline', title: 'Add another OpenRGB server', onclick: () => {
       cfg.servers.push({ name: 'My Computer', host: 'localhost', port: 6742, deviceConfigs: [] });
       pushConfig();
       render();

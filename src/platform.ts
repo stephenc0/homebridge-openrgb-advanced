@@ -184,10 +184,12 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
     return this.api.hap.uuid.generate(`${device.name}-${device.serial}-${device.location}`);
   }
 
-  /** Converts a single white balance value (0=cool, 128=neutral, 255=warm) to an RGB multiplier Color. */
+  /** Converts a single white balance value (0=cool, 128=neutral, 255=warm) to an RGB multiplier Color.
+   *  Full range: cool extreme = R:0 B:255, warm extreme = R:255 B:0.
+   */
   wbToColor(wb: number): Color {
-    const r = wb <= 128 ? Math.round(127 + wb) : 255;
-    const b = wb >= 128 ? Math.round(383 - wb) : 255;
+    const r = wb < 128 ? wb * 2 : 255;
+    const b = wb > 128 ? (255 - wb) * 2 : 255;
     return [r, 255, b];
   }
 
