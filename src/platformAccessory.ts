@@ -203,7 +203,11 @@ export class OpenRgbPlatformAccessory {
   async setColorTemperature(value: CharacteristicValue) {
     this.states.ColorTemperature = value as number;
     this.useColorTemp = true;
-    await this.updateLeds();
+    // Only push to LEDs if the light is actually on — adaptive lighting fires
+    // on startup before On/Brightness state is populated, which would black out LEDs.
+    if (this.states.On) {
+      await this.updateLeds();
+    }
     this.platform.log.debug(`Set Characteristic ColorTemperature -> ${value} (${this.accessory.context.device.name})`);
   }
 
@@ -216,13 +220,15 @@ export class OpenRgbPlatformAccessory {
 
     const isOn: boolean = this.states.On;
     const ledWhiteBalances: Color[] = this.accessory.context.ledWhiteBalances ?? [];
+    this.platform.log.debug(`updateLeds: On=${isOn} Brightness=${this.states.Brightness} CT=${this.states.ColorTemperature} useColorTemp=${this.useColorTemp} (${this.accessory.context.device.name})`);
 
     // Determine target color from current state
     let newColorRgb: Color;
     if (this.useColorTemp) {
       const kelvin = Math.round(1000000 / this.states.ColorTemperature);
       const fullRgb = colorTemperatureToRgb(kelvin);
-      const brightness = this.states.Brightness / 100;
+      // Fall back to 100% brightness if state hasn't been fetched yet
+      const brightness = (this.states.Brightness || 100) / 100;
       newColorRgb = [
         Math.round(fullRgb[0] * brightness),
         Math.round(fullRgb[1] * brightness),
@@ -287,7 +293,7 @@ export class OpenRgbPlatformAccessory {
           this.accessory.context.lastPoweredRgbColor = newColorRgb;
         }
       } catch (err) {
-        this.platform.log.warn(`Failed to set light color on device: ${device.name}`);
+        this.platform.log.warn(`Failed to set light color on device: ${device.name} — ${err instanceof Error ? err.message : err}`);
       }
     });
   }
