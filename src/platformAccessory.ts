@@ -114,7 +114,8 @@ export class OpenRgbPlatformAccessory {
   }
 
   async getColorTemperature(): Promise<CharacteristicValue> {
-    this.platform.log.debug(`Get Characteristic ColorTemperature -> ${this.states.ColorTemperature} (${this.accessory.context.device.name})`);
+    const ct = this.states.ColorTemperature;
+    this.platform.log.debug(`Get Characteristic ColorTemperature -> ${ct} (${this.accessory.context.device.name})`);
     return this.states.ColorTemperature;
   }
 
@@ -220,7 +221,9 @@ export class OpenRgbPlatformAccessory {
 
     const isOn: boolean = this.states.On;
     const ledWhiteBalances: Color[] = this.accessory.context.ledWhiteBalances ?? [];
-    this.platform.log.debug(`updateLeds: On=${isOn} Brightness=${this.states.Brightness} CT=${this.states.ColorTemperature} useColorTemp=${this.useColorTemp} (${this.accessory.context.device.name})`);
+    const { Brightness: bri, ColorTemperature: ct2 } = this.states;
+    const device = this.accessory.context.device.name;
+    this.platform.log.debug(`updateLeds: On=${isOn} Bri=${bri} CT=${ct2} colorTemp=${this.useColorTemp} (${device})`);
 
     // Determine target color from current state
     let newColorRgb: Color;
