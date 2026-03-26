@@ -1,5 +1,5 @@
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
-const OpenRGB = require('openrgb-sdk').default;
+const { Client: OpenRGB } = require('openrgb-sdk');
 
 class OpenRgbUiServer extends HomebridgePluginUiServer {
   constructor() {
