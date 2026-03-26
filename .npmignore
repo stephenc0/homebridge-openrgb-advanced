@@ -4,4 +4,3 @@ tsconfig.json
 .vscode
 nodemon.json
 .github
-dist
