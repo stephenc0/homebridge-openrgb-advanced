@@ -1,7 +1,7 @@
 {
   "displayName": "Homebridge OpenRGB Advanced",
   "name": "homebridge-openrgb-advanced",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "license": "Apache-2.0",
   "author": "stephenc0",
   "homepage": "https://github.com/stephenc0/homebridge-openrgb-advanced#readme",
@@ -48,7 +48,7 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
-    "homebridge": "^2.0.0",
+    "homebridge": "^2.0.0-beta.0",
     "nodemon": "^3.1.0",
     "rimraf": "^6.1.3",
     "ts-node": "^10.9.0",

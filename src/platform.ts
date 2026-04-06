@@ -70,9 +70,9 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
    * This function is invoked when Homebridge restores cached accessories from disk at startup.
    * It should be used to setup event handlers for characteristics and update respective values.
    */
-  configureAccessory(accessory: PlatformAccessory<RgbDeviceContext>) {
+  configureAccessory(accessory: PlatformAccessory) {
     this.log.info('Loading accessory from cache:', accessory.displayName);
-    this.accessories.push(accessory);
+    this.accessories.push(accessory as PlatformAccessory<RgbDeviceContext>);
   }
 
   /**

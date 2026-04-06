@@ -224,6 +224,13 @@ export class OpenRgbPlatformAccessory {
     const device = this.accessory.context.device.name;
     this.platform.log.debug(`updateLeds: On=${isOn} Bri=${bri} CT=${ct2} colorTemp=${this.useColorTemp} (${device})`);
 
+    // If the light is off and we're not actively toggling power (e.g. a scene redundantly
+    // sets an already-off device to off, or a color characteristic changes while off),
+    // there is nothing to send — skipping prevents spuriously switching to Direct mode.
+    if (!isOn && togglingPower !== true) {
+      return;
+    }
+
     // Determine target color from current state
     let newColorRgb: Color;
     if (this.useColorTemp) {
