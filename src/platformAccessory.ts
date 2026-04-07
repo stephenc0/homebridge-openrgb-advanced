@@ -6,7 +6,6 @@ import { OpenRgbPlatform } from './platform';
 import { Color, OpenRgbColor, RgbDeviceContext, RgbDeviceStates } from './rgb';
 import * as ColorConvert from 'color-convert';
 import {
-  getDeviceLedRgbColor,
   findDeviceModeId,
   isLedOff,
   getStateHsvColor,
@@ -118,7 +117,8 @@ export class OpenRgbPlatformAccessory {
   }
 
   async getColorTemperature(): Promise<CharacteristicValue> {
-    this.platform.log.debug(`Get Characteristic ColorTemperature -> ${this.states.ColorTemperature} (${this.accessory.context.device.name})`);
+    const ct = this.states.ColorTemperature;
+    this.platform.log.debug(`Get Characteristic ColorTemperature -> ${ct} (${this.accessory.context.device.name})`);
     return this.states.ColorTemperature;
   }
 
