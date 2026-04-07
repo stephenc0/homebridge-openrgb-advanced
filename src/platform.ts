@@ -233,7 +233,7 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
       let ledIndex = 0;
       for (const zone of device.zones) {
         const zoneTint = deviceConfig.zoneTint[zone.name];
-        const zoneColor = zoneTint !== undefined ? this.tintToColor(zoneTint) : deviceDefault;
+        const zoneColor = (zoneTint !== undefined && zoneTint !== 128) ? this.tintToColor(zoneTint) : deviceDefault;
         for (let i = 0; i < zone.ledsCount && ledIndex + i < ledCount; i++) {
           result[ledIndex + i] = zoneColor;
         }
@@ -259,7 +259,7 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
       let ledIndex = 0;
       for (const zone of device.zones) {
         const zoneSat = deviceConfig.zoneSaturation[zone.name];
-        const zoneValue = zoneSat !== undefined ? zoneSat : deviceDefault;
+        const zoneValue = (zoneSat !== undefined && zoneSat !== 100) ? zoneSat : deviceDefault;
         for (let i = 0; i < zone.ledsCount && ledIndex + i < ledCount; i++) {
           result[ledIndex + i] = zoneValue;
         }
@@ -285,7 +285,7 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
       let ledIndex = 0;
       for (const zone of device.zones) {
         const zoneWb = deviceConfig.zoneWhiteBalance[zone.name];
-        const zoneColor = zoneWb !== undefined ? this.wbToColor(zoneWb) : deviceDefault;
+        const zoneColor = (zoneWb !== undefined && zoneWb !== 128) ? this.wbToColor(zoneWb) : deviceDefault;
         for (let i = 0; i < zone.ledsCount && ledIndex + i < ledCount; i++) {
           result[ledIndex + i] = zoneColor;
         }
