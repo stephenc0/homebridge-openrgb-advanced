@@ -292,12 +292,15 @@ export class OpenRgbPlatformAccessory {
         if (isLedOff(newColorRgb)) {
           return { red: 0, green: 0, blue: 0 };
         }
+        const satScale = (liveLedSaturations[i] ?? 100) / 100;
+        const saturated: Color = [
+          Math.round(255 * (1 - satScale) + newColorRgb[0] * satScale),
+          Math.round(255 * (1 - satScale) + newColorRgb[1] * satScale),
+          Math.round(255 * (1 - satScale) + newColorRgb[2] * satScale),
+        ];
         const wb = liveLedWhiteBalances[i] ?? neutral;
         const tint = liveLedTints[i] ?? neutral;
-        const wbColor = applyWhiteBalance(applyWhiteBalance(newColorRgb, wb), tint);
-        const satScale = (liveLedSaturations[i] ?? 100) / 100;
-        const [h, s, v] = ColorConvert.rgb.hsv(...wbColor);
-        const finalColor: Color = ColorConvert.hsv.rgb([h, s * satScale, v]);
+        const finalColor = applyWhiteBalance(applyWhiteBalance(saturated, wb), tint);
         return { red: finalColor[0], green: finalColor[1], blue: finalColor[2] };
       });
 
