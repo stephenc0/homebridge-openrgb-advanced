@@ -3,10 +3,11 @@ import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, 
 import { PLATFORM_NAME, PLUGIN_NAME, DEFAULT_DISCOVERY_INTERVAL, SERVER_CONNECTION_TIMEOUT, DEFAULT_DEVICE_NAME } from './settings';
 import { OpenRgbPlatformAccessory } from './platformAccessory';
 
-import { RgbServer, RgbDevice, RgbDeviceContext } from './rgb';
+import { RgbServer, RgbDevice, RgbDeviceContext, RgbDeviceStates } from './rgb';
 import { Client as OpenRGB } from 'openrgb-sdk';
-import { findDeviceModeId } from './utils';
+import { findDeviceModeId, getDeviceLedRgbColor, isLedOff } from './utils';
 import { Color } from './rgb';
+import * as ColorConvert from 'color-convert';
 
 /**
  * HomebridgePlatform
@@ -116,6 +117,11 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
         if (device.activeMode !== findDeviceModeId(device, 'Off')) {
           existingAccessory.context.lastPoweredModeId = device.activeMode;
         }
+        // Bootstrap persisted states from the device on first run after upgrade
+        if (!existingAccessory.context.states) {
+          existingAccessory.context.states = this.statesFromDevice(device);
+          existingAccessory.context.useColorTemp = false;
+        }
         this.api.updatePlatformAccessories([existingAccessory]);
 
         if (this.handlerUuids.indexOf(uuid) < 0) {
@@ -136,6 +142,8 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
         if (device.activeMode !== findDeviceModeId(device, 'Off')) {
           accessory.context.lastPoweredModeId = device.activeMode;
         }
+        accessory.context.states = this.statesFromDevice(device);
+        accessory.context.useColorTemp = false;
 
         if (this.handlerUuids.indexOf(uuid) < 0) {
           this.handlerUuids.push(uuid);
@@ -178,6 +186,20 @@ export class OpenRgbPlatform implements DynamicPlatformPlugin {
   /** For generating a UUID for an RGB device from a globally unique but constant set of inputs */
   genUuid(device: RgbDevice): string {
     return this.api.hap.uuid.generate(`${device.name}-${device.serial}-${device.location}`);
+  }
+
+  /** Derives initial HomeKit characteristic states from the device's current LED color. */
+  statesFromDevice(device: RgbDevice): RgbDeviceStates {
+    const colorRgb = getDeviceLedRgbColor(device);
+    const isOn = !isLedOff(colorRgb);
+    const [h, s, v] = ColorConvert.rgb.hsv(...colorRgb);
+    return {
+      On: isOn,
+      Hue: h,
+      Saturation: s,
+      Brightness: isOn ? v : 100, // default brightness to 100 when off so turning on restores a visible color
+      ColorTemperature: 370,
+    };
   }
 
   /** Converts a single white balance value (0=cool, 128=neutral, 255=warm) to an RGB multiplier Color.
