@@ -135,14 +135,15 @@ export class OpenRgbPlatformAccessory {
       }
 
       const colorRgb = getDeviceLedRgbColor(device);
-      colorHsv = ColorConvert.rgb.hsv(...colorRgb);
 
       if (isLedOff(colorRgb)) {
         // Lights off: return the previous state to preserve the set color
         colorHsv = getStateHsvColor(this.states);
       } else {
-        // Lights on: update last powered color context value
-        this.accessory.context.lastPoweredRgbColor = colorRgb;
+        // Use the stored pre-override base color so transforms don't stack on restart.
+        // Fall back to reading from the device only if no stored value exists yet.
+        const baseColor = this.accessory.context.lastPoweredRgbColor ?? colorRgb;
+        colorHsv = ColorConvert.rgb.hsv(...baseColor);
       }
 
       if (device.activeMode !== findDeviceModeId(device, 'Off')) {
